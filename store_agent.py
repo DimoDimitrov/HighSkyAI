@@ -14,6 +14,12 @@ os.environ['OPENAI_API_KEY'] = os.environ.get("OPENAI_API_KEY")
 
 model = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0125") # model gpt
 
+KEYWORD_NODE_MAPPING = {
+    "recommend": "recommendation",
+    "end": "end",
+    "bye": "end"
+}
+
 #------------Database
 
 collection = createDB()
@@ -57,12 +63,14 @@ def should_continue(state):
     messages = state["input"]
     last_message = messages[-1]
 
-    if re.search(r'\brecommend\b', last_message, re.IGNORECASE):
-        return "recommendation"
-    elif re.search(r'\bend\b|\bbye\b', last_message, re.IGNORECASE):
-        return "end"
-    else:
-        return "sideQuery"
+    words = last_message.split()
+
+    for word in words:
+        if word in KEYWORD_NODE_MAPPING:
+            return KEYWORD_NODE_MAPPING[word]
+    
+    # Default to sideQuery if no keywords match
+    return "sideQuery"
 
 workflow = StateGraph(State)    
 
@@ -95,5 +103,4 @@ while not re.search(r'\bend\b', tempQuery, re.IGNORECASE):
         # print(event)
         output = event
     print(output["input"][-1])
-
 
