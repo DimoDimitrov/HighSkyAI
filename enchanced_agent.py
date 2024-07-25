@@ -5,10 +5,9 @@ from langchain_openai import ChatOpenAI
 from typing import TypedDict
 from langgraph.graph import StateGraph
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import BaseTool
-from langchain.schema import AIMessage
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, END
 
 from database import createDB, addItemsDB, retrieve, dropDB
 
@@ -27,6 +26,16 @@ addItemsDB(collection)
 
 class State(TypedDict):
     input: str
+    next_node: str
+    recommended: list[str]
+
+def pre_promptGenerator(recommended):
+    prePrompt = ""
+    with open('./agent_data.txt', 'r') as file:
+        prePrompt = file.read()
+    items = ", ".join(recommended)
+    prePrompt += " The following are items that you have recommended to this client: " + items + ". I want you to use them as a refference when desciding if you can recommend an item."
+    return prePrompt
 
 class MyTool(BaseTool):
     name = "my_tool"
@@ -47,9 +56,9 @@ def agent_node(state):
 
     # Call the tool to check the user input
     tool_result = my_tool.invoke({"input": [last_message]})
-
+    
     if tool_result == "END":
-        response = model.invoke(last_message)
+        response = model.invoke(messages)
         state["input"].append(response.content)
         state["next_node"] = END
         return state
@@ -63,6 +72,7 @@ def recommendationNode(stream):
     last_message = messages[-1]
     result = retrieve(collection, last_message)
     output = "We recommend -> " + result["documents"][0][0] + ", with url -> " + result["metadatas"][0][0]["url"] + " and image -> " + result["metadatas"][0][0]["image"]
+    stream["recommended"].append(output)
     stream["input"].append(output)
     return stream
     
@@ -86,14 +96,18 @@ thread = {"configurable": {"thread_id": "1"}}
 
 app = workflow.compile(checkpointer=memory)
 
-userQuery = {"input" : [""]}
+userQuery = {"input" : [""], "next_node" : "", "recommended" : []}
 tempQuery = ""
 
-while not re.search(r'\bend\b', tempQuery, re.IGNORECASE):
+while not re.search(r'\bbye\b', tempQuery, re.IGNORECASE):
     tempQuery = input("---")
     output = ""
     userQuery["input"].append(tempQuery.lower())
-    for event in app.stream(userQuery, thread, stream_mode="values"):
+    #Call the function to update the pre-prompt and update the recommendation
+    prePrompt = pre_promptGenerator(userQuery["recommended"])
+    userQuery["input"].pop(0)
+    userQuery["input"].insert(0, prePrompt) 
+    for event in app.stream(userQuery, thread, stream_mode="values"): 
         # print(event)
         output = event
     print(output["input"][-1])
