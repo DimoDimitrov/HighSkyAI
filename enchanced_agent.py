@@ -8,7 +8,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import StateGraph, END
-
+from langchain.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from database import createDB, addItemsDB, retrieve, dropDB
 
 load_dotenv()
@@ -29,13 +30,26 @@ class State(TypedDict):
     next_node: str
     recommended: list[str]
 
-def pre_promptGenerator(recommended):
+def callPromptChain(recommended, messages):
     prePrompt = ""
+    last_message = messages[-1]
     with open('./agent_data.txt', 'r') as file:
         prePrompt = file.read()
     items = ", ".join(recommended)
-    prePrompt += " The following are items that you have recommended to this client: " + items + ". I want you to use them as a refference when desciding if you can recommend an item."
-    return prePrompt
+    prompt = PromptTemplate(
+        input_variables=["prePrompt","items", "last_message", "messages"],
+        template= "{prePrompt} The following are items that you have recommended to this client: {items}. Here is your memmory component: {messages} I want you to use them as a refference when desciding if you can recommend an item. Please respond to the user's query: {last_message} in a professional manner without redundant greetings or farewells.")
+    chain = prompt | model | StrOutputParser()
+    chain_input = {
+        "prePrompt": prePrompt,
+        "items": items,
+        "last_message": last_message,
+        "messages": messages
+    }
+    result = chain.invoke(chain_input)
+    return result
+
+# Define_prompt function. Gets callled by out 
 
 class MyTool(BaseTool):
     name = "my_tool"
@@ -58,8 +72,8 @@ def agent_node(state):
     tool_result = my_tool.invoke({"input": [last_message]})
     
     if tool_result == "END":
-        response = model.invoke(messages)
-        state["input"].append(response.content)
+        response = callPromptChain(userQuery["recommended"], messages)
+        state["input"].append(response)
         state["next_node"] = END
         return state
     else:
@@ -103,10 +117,6 @@ while not re.search(r'\bbye\b', tempQuery, re.IGNORECASE):
     tempQuery = input("---")
     output = ""
     userQuery["input"].append(tempQuery.lower())
-    #Call the function to update the pre-prompt and update the recommendation
-    prePrompt = pre_promptGenerator(userQuery["recommended"])
-    userQuery["input"].pop(0)
-    userQuery["input"].insert(0, prePrompt) 
     for event in app.stream(userQuery, thread, stream_mode="values"): 
         # print(event)
         output = event
