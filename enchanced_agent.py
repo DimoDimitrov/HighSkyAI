@@ -57,7 +57,7 @@ class MyTool(BaseTool):
 
     def _run(self, input: str) -> str:
         """Checks if there is a need for recommendation of an item"""
-        prompt = f"The following will be a user input. I want you to check if the user wants a recommendation for an item and the query is adequate. If that is so, return only the item needed. Else, return 'END'. Input: {input}"
+        prompt = f"The following will be a user input. I want you to check if the user wants a recommendation for an item and the query is adequate. If that is so, return only the query. Else, return 'END'. Input: {input}"
         response = model.invoke([HumanMessage(content=prompt)])
         return response.content
 
@@ -113,11 +113,22 @@ app = workflow.compile(checkpointer=memory)
 userQuery = {"input" : [""], "next_node" : "", "recommended" : []}
 tempQuery = ""
 
-while not re.search(r'\bbye\b', tempQuery, re.IGNORECASE):
-    tempQuery = input("---")
-    output = ""
-    userQuery["input"].append(tempQuery.lower())
-    for event in app.stream(userQuery, thread, stream_mode="values"): 
-        # print(event)
-        output = event
-    print(output["input"][-1])
+def bongoAgent(query):
+        output = ""
+        print(query)
+        userQuery["input"].append(query.lower())
+        for event in app.stream(userQuery, thread, stream_mode="values"): 
+            output = event
+            # print(output)
+        return(output["input"][-1])
+
+# while not re.search(r'\bbye\b', tempQuery, re.IGNORECASE):
+#     tempQuery = input("---")
+#     output = ""
+#     userQuery["input"].append(tempQuery.lower())
+#     #Make a server call for the query
+#     for event in app.stream(userQuery, thread, stream_mode="values"): 
+#         # print(event)
+#         output = event
+#     #Make a server call for the output
+#     print(output["input"][-1])
