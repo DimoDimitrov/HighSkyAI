@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./main.css">
+    <title>Bongo Electricals</title>
+</head>
+<body>
+    <img src="./unnamed.png" alt="bongo-logo" class="logo">
+    <h1>Wellcome to Bongo Electricals</h1>
+    <!-- <p id="message"></p> -->
+    <div class="inputs">
+        <input type="text" id="query"></input>
+        <button id="computeButton">Ask</button>
+    </div>    
+    <hr>
+
+    <script >
+        document.getElementById('computeButton').addEventListener('click', () => {
+            const input = document.getElementById('query').value
+            document.getElementById('query').value = ""
+            createUserMessage(input);
+            fetch('http://localhost:5000/api/response', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(input)
+            })
+            .then(response => response.json())
+            .then(data => {
+                createAIMessage(data.result);
+            });
+        });
+
+        function createUserMessage(message){
+            let pElement = document.createElement('p');
+            pElement.textContent = message;
+            pElement.classList.add("userMessage");
+            document.body.appendChild(pElement);
+        }
+
+        function createAIMessage(message){
+            let pElement = document.createElement('p');
+            pElement.textContent = message;
+            pElement.classList.add("aiMessage");
+            document.body.appendChild(pElement);
+        }
+    </script>
+</body>
+</html>
+
+<!-- On each user query and Ai answer, crete a p elemepnth. They should be with different colours and positions. User query stays on the right.  -->
